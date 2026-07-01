@@ -1,0 +1,34 @@
+name: Fetch Seattle Times Feed
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch feed (direct, fallback to Google News)
+        run: |
+          set -e
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          if curl -sf -A "$UA" "https://www.seattletimes.com/seattle-news/feed/" -o feed.xml && grep -q "<rss" feed.xml; then
+            echo "Direct fetch succeeded"
+          else
+            echo "Direct fetch failed or blocked, falling back to Google News"
+            curl -sf "https://news.google.com/rss/search?q=site:seattletimes.com&hl=en-US&gl=US&ceid=US:en" -o feed.xml
+          fi
+
+      - name: Commit feed
+        run: |
+          git config user.name "feed-bot"
+          git config user.email "actions@github.com"
+          git add feed.xml
+          git diff --cached --quiet || git commit -m "Update feed $(date -u)"
+          git push
